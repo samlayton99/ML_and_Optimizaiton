@@ -323,7 +323,7 @@ def prob6(n_neighbors, filename="mnist_subset.npz"):
     return accuracy
 
 
-"""def digitcheck(n):
+def digitcheck(n):
     #Input an index and pull from the mnist_subset.npz file to display the number
     #then run the KNeighborsClassifier on the number and return the prediction.
     
@@ -344,7 +344,5 @@ def prob6(n_neighbors, filename="mnist_subset.npz"):
     # Display the number
     plt.imshow(X_test[n].reshape((28,28)), cmap="gray")
     plt.show()
-"""
-    
 
-#digitcheck(60)
+digitcheck(60)

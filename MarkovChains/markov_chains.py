@@ -6,8 +6,6 @@
 """
 
 import numpy as np
-from scipy import linalg as la
-
 
 class MarkovChain:
     """A Markov chain with finitely many states.
