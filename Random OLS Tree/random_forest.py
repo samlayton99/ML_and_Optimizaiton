@@ -34,10 +34,6 @@ class Question:
         # Check if it is a match
         return sample[self.column] >= self.value
 
-    def __repr__(self):
-        return "Is %s >= %s?" % (self.features, str(float(self.value)))
-
-
 def partition(data, question):
     """Splits the data into left (true) and right (false)
     Parameters:
@@ -47,18 +43,14 @@ def partition(data, question):
         left ((j,n), ndarray): Portion of the data matching the question
         right ((m-j, n), ndarray): Portion of the data NOT matching the question
     """
-    n = data[0].shape[0]
-
     # Get the feature
     feature = data[:, question.column]
-
     mask = feature >= question.value
 
     # Mask it to get the left and right partitions
     left = data[mask]
     right = data[~mask]
-
-    return left.reshape(-1, n), right.reshape(-1, n)
+    return left.reshape(-1, data[0].shape[0]), right.reshape(-1, data[0].shape[0])
 
 
 # Helper function
@@ -250,7 +242,6 @@ def analyze_tree(dataset, my_tree):
 
     # Get labels
     actual_labels = dataset[:, -1]
-
     n = dataset.shape[0]
 
     # Predict each sample in dataset
@@ -295,124 +286,4 @@ def analyze_forest(dataset, forest):
         [predict_forest(dataset[i], forest) for i in range(n)])
 
     return (actual_labels == predicted_labels).sum() / n
-
-
-# Problem 7
-def prob7():
-    """ Using the file parkinsons.csv, return three tuples. For tuples 1 and 2,
-        randomly select 130 samples; use 100 for training and 30 for testing.
-        For tuple 3, use the entire dataset with an 80-20 train-test split.
-        Tuple 1:
-            a) Your accuracy in a 5-tree forest with min_samples_leaf=15
-                and max_depth=4
-            b) The time it took to run your 5-tree forest
-        Tuple 2:
-            a) Scikit-Learn's accuracy in a 5-tree forest with
-                min_samples_leaf=15 and max_depth=4
-            b) The time it took to run that 5-tree forest
-        Tuple 3:
-            a) Scikit-Learn's accuracy in a forest with default parameters
-            b) The time it took to run that forest with default parameters
-    """
-    # Get data and features
-    dataset = np.loadtxt('parkinsons.csv', delimiter=',')[:, 1:]
-    features = np.loadtxt('parkinsons_features.csv', delimiter=',', dtype=str)
-    total = dataset.shape[0]
-
-    # Get random sample of the data
-    random_indices = np.random.choice(np.arange(dataset.shape[0]), 130, replace=False)
-    random_data = dataset[random_indices]
-
-    # Split the sample into a training and testing set
-    random_indices = np.random.choice(np.arange(130), 100, replace=False)
-    X_train = random_data[random_indices]
-    X_test = random_data[np.setdiff1d(np.arange(130), random_indices)]
-
-    # Split the entire dataset into training and testing set
-    per80 = int(total * 0.8)
-    random_indices = np.random.choice(np.arange(total), per80, replace=False)
-    X_train_full = dataset[random_indices]
-    X_test_full = dataset[np.setdiff1d(np.arange(total), random_indices)]
-
-    # Set parameters as mentioned
-    min_samples_leaf = 15
-    max_depth = 4
-
-    # Time my implementation
-    start = time.perf_counter()
-
-    my_forest = [build_tree(
-        X_train,
-        features,
-        min_samples_leaf,
-        max_depth) for _ in range(5)]
-
-    my_acc = analyze_forest(X_test, my_forest)
-
-    end = time.perf_counter()
-
-    my_time = end - start
-
-    # Time scikit-learn implementation
-    start = time.perf_counter()
-
-    rf_classifier = RF(n_estimators=5,
-                       max_depth=max_depth,
-                       min_samples_leaf=min_samples_leaf)
-    rf_classifier.fit(X_train[:, :-1], X_train[:, -1])
-    sk_acc = rf_classifier.score(X_test[:, :-1], X_test[:, -1])
-
-    end = time.perf_counter()
-
-    sk_time = end - start
-
-    # Time scikit-learn implementation on the full dataset
-    start = time.perf_counter()
-
-    rf_classifier = RF(n_estimators=5,
-                       max_depth=max_depth,
-                       min_samples_leaf=min_samples_leaf)
-    rf_classifier.fit(X_train_full[:, :-1], X_train_full[:, -1])
-    sk_acc_full = rf_classifier.score(X_test_full[:, :-1], X_test_full[:, -1])
-
-    end = time.perf_counter()
-
-    sk_time_full = end - start
-
-    return (my_acc, my_time), (sk_acc, sk_time), (sk_acc_full, sk_time_full)
-
-
-# Code to draw a tree
-def draw_node(graph, my_tree):
-    """Helper function for drawTree"""
-    node_id = uuid4().hex
-    # If it's a leaf, draw an oval and label with the prediction
-    if not hasattr(my_tree, "question"):  # isinstance(my_tree, leaf_class):
-        graph.node(node_id, shape="oval", label="%s" % my_tree.prediction)
-        return node_id
-    else:  # If it's not a leaf, make a question box
-        graph.node(node_id, shape="box", label="%s" % my_tree.question)
-        left_id = draw_node(graph, my_tree.left)
-        graph.edge(node_id, left_id, label="T")
-        right_id = draw_node(graph, my_tree.right)
-        graph.edge(node_id, right_id, label="F")
-        return node_id
-
-
-def draw_tree(my_tree, filename='Digraph', leaf_class=Leaf):
-    """Draws a tree"""
-    # Remove the files if they already exist
-    for file in [f'{filename}.gv',f'{filename}.gv.pdf']:
-        if os.path.exists(file):
-            os.remove(file)
-    graph = graphviz.Digraph(comment="Decision Tree")
-    draw_node(graph, my_tree)
-    # graph.render(view=True) #This saves Digraph.gv and Digraph.gv.pdf
-    in_wsl = False
-    in_wsl = 'microsoft-standard' in uname().release
-    if in_wsl:
-        graph.render(f'{filename}.gv', view=False)
-        os.system(f'cmd.exe /C start {filename}.gv.pdf')
-    else:
-        graph.render(view=True)
 
