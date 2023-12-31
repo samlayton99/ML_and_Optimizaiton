@@ -1,13 +1,12 @@
-# This file is meant to include all finalized models used in the project
-# It is meant to be imported and used by other files
-
+# # This file is meant to include all finalized models used in the project
+# # It is meant to be imported and used by other files
+# import matplotlib.pyplot as plt
+# from sklearn.datasets import load_digits
+# from sklearn.model_selection import train_test_split
+# from sklearn.ensemble import RandomForestClassifier
+# from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-from sklearn.datasets import load_digits
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 
 ##################################################################################################
 ##################################################################################################
@@ -317,7 +316,7 @@ class DecisionTree:
         predictions = np.zeros(len(sample))
         predictions = predict_tree(sample, self.tree, predictions)
         return predictions
-        
+
 class RandomForest:
     """ A random forest class that can be used for classification or regression.
     Attributes:
