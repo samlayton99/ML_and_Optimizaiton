@@ -319,30 +319,44 @@ class DecisionTree:
         return predictions
         
 class RandomForest:
-    """
-    A random forest class that can be used for classification.
+    """ A random forest class that can be used for classification or regression.
     Attributes:
-        data (numpy array): data to use for the tree
+        data (numpy array): data to use for the forest
         features (list): list of feature names
         min_samples_leaf (int): minimum number of samples in a leaf
         max_depth (int): maximum depth of the tree
         is_numeric (numpy array - boolean): boolean array indicating whether each feature is numeric or not
+        category_codes (dict): dictionary of the category codes for each non numeric feature
         size_random_subset (int): number of features to use for each split
-        y_index (int): index of the column of the target variable
+        n_trees (int): number of trees in the forest
+        weights (numpy array): weights for each tree
+        trees (list): list of trees in the forest
+        bootstrap_size (int): size of the boot strap sample
+        data_size (int): size of the data
+        class_n (int): number of classes
+        forest_type (str): type of forest (classification or regression)
+
+    Methods:
+        access_tree: access the decision tree class
+        print_codes: print the category codes
+        fit: fit the random forest
+        fit_with_oob: fit the random forest with out of bag data
+        predict: predict the label for a sample with the ensemble
     """
     
     def __init__(self,dataframe, labels = None, target_index = None, n_trees = 10, min_samples_leaf=5, max_depth=4, features = None, size_rand_subset = None, bootstrap_size = None):
         """
         Initialize the random forest
         Inputs:
-            dataframe (pandas dataframe or numpy array): data to use for the forest
-            target_index (int): index of the column of the target variable
+            dataframe (pandas dataframe or numpy array): data to use for the forest (target in last column)
+            labels (numpy array): labels to use for the forest
+            target_index (int): index of the target variable
+            n_trees (int): number of trees in the forest
             min_samples_leaf (int): minimum number of samples in a leaf
             max_depth (int): maximum depth of the tree
             features (list): list of feature names
-            is_numeric (numpy array - boolean): boolean array indicating whether each feature is numeric or not
-            category_codes (dict): dictionary of the category codes for each non numeric feature
-            size_random_subset (int): number of features to use for each split
+            size_rand_subset (int): number of features to use for each split
+            bootstrap_size (int): size of the boot strap sample
         """
         #### Data preprocessing ####
         # Check the data type and raise an error if it is not a dataframe or numpy array
@@ -399,12 +413,6 @@ class RandomForest:
         else:
             self.forest_type = 'classification'
 
-        ######## TO DO: add regression functionality ########
-        if self.forest_type == 'regression':
-            raise ValueError('Regression not yet implemented')
-        
-        #####################################################
-
         # Check which features are numeric and save the boolean mask
         numeric_cols = df.select_dtypes(include=['number']).columns
         self.is_numeric = df.columns.isin(numeric_cols)
@@ -450,15 +458,9 @@ class RandomForest:
         for key in self.category_codes:
             print("{:<{width}} {}".format(str(key), "---  "+str(self.category_codes[key]), width=max_key_length + 1))
 
-    def fit(self, n_trees = None, bootstrap_size = None):
+    def fit(self, bootstrap_size = None):
         """ Fit the random forest """
-        # Update the number of trees and boot strap size if given
-        if n_trees is not None:
-            self.n_trees = n_trees
-
-            #### FIX ME: CAREFUL HERE ####
-            self.weights = np.ones(self.n_trees) / self.n_trees
-        
+        # If a new bootstrap size is given, update the bootstrap size
         if bootstrap_size is not None:
             self.bootstrap_size = bootstrap_size
 
@@ -487,14 +489,14 @@ class RandomForest:
         for i in range(self.n_trees):
             ensemble[:,i] = self.trees[i].predict(sample)
 
-        # Get the weighted average of the predictions
+        # Determine the weights to use
+        weights = None
         if weighted:
-            ###### FIX ME #######
-            predicted = np.average(ensemble, axis=1, weights=self.weights)
-
-        # Get the majority vote of the predictions
-        else:
-            predicted = np.apply_along_axis(lambda x: np.argmax(np.bincount(x.astype(int))), axis=1, arr=ensemble)
+            weights = self.weights
+            
+        # Get the predicted labels
+        ensemble = ensemble.astype(int)
+        predicted = np.apply_along_axis(lambda x: np.argmax(np.bincount(x, minlength=np.max(ensemble)+1, weights=weights)), axis=1, arr=ensemble)
 
         # If the labels are not given, return the predicted labels
         if not labeled:
