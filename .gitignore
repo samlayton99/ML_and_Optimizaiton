@@ -1,2 +1,1 @@
-fashion_mnist_train.csv
-fashion_mnist_test.csv
+*.csv
