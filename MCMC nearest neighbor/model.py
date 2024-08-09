@@ -4,6 +4,7 @@ from matplotlib import pyplot as plt
 from scipy.optimize import minimize
 from sklearn.metrics import accuracy_score
 from tqdm import tqdm
+import pickle
 
 
 # Other analysis libraries
@@ -96,6 +97,36 @@ class model3():
         
 
     ############################## Helper Functions ###############################
+    def set_params(self, **kwargs):
+        """
+        Set the parameters of the model
+
+        Parameters:
+            **kwargs - The parameters to set
+        Returns:
+            None
+        """
+        # TODO: Test this function
+        for key, value in kwargs.items():
+            try:
+                setattr(self, key, value)
+            except Exception as e:
+                print(f"Could not set {key} to {value}. Error: {e}")
+    
+
+    def get_params(self):
+        """
+        Get the parameters of the model
+
+        Parameters:
+            None
+        Returns:
+            params (dict) - The parameters of the model
+        """
+        # TODO: Test this function
+        return self.__dict__
+    
+
     def label_from_stationary(self, stationary:np.ndarray, show_probabilities=False):
         """
         Get the label for each class from the stationary distribution.
@@ -322,7 +353,7 @@ class model3():
             subset (list) - A list of indices for the subset
             subset_num (int) - The number of the subset
         Returns:
-            loss (float) - The loss function
+            loss (float) - The loss value
         """
         # Initialize the loss and total gaussian
         self.update_gaussian(W, subset_num)
@@ -498,7 +529,8 @@ class model3():
             y_val_set (n_val,) ndarray - The validation labels for the data
             init_weights (d,d) ndarray - The initial weights for the model
         Returns:
-            None
+            train_history (list) - A list of training accuracies
+            val_history (list) - A list of validation accuracies
         """
         # Save the data as variables and encode y
         self.X = np.array(X)
@@ -533,6 +565,8 @@ class model3():
         # Otherwise, raise an error
         else:
             raise ValueError("Optimizer must be 'sgd', 'bfgs, or 'grad'")
+        
+        return self.train_history, self.val_history
 
 
     ############################## Prediction Functions #############################
@@ -561,6 +595,74 @@ class model3():
 
         # Return the predictions
         return np.array(predictions)
+    
+
+    def score(self, X:np.ndarray=None, y:np.ndarray=None):
+        """
+        Get the accuracy of the model on the data
+        
+        Parameters:
+            X (n,d) ndarray - The data to score the model on
+            y (n,) ndarray - The labels of the data
+        Returns:
+            accuracy (float) - The accuracy of the model on the data
+        """
+        # If the data is not provided, use the training data
+        if X is None:
+            X = self.X
+            y = self.y
+
+        # TODO: Test this function
+        # Get the predictions and return the accuracy
+        predictions = self.predict(X)
+        return accuracy_score(y, predictions)
+    
+
+    def cross_val_score(self, X:np.ndarray, y:np.ndarray, cv=5):
+        """
+        Get the cross validated accuracy of the model on the data
+        
+        Parameters:
+            X (n,d) ndarray - The data to score the model on
+            y (n,) ndarray - The labels of the data
+            cv (int) - The number of cross validation splits
+        Returns:
+            scores (list) - The accuracy of the model on the data for each split
+        """
+        #TODO: Test this function
+        # Split the data and initialize the scores
+        scores = []
+        for train_index, test_index in train_test_split(np.arange(X.shape[0]), test_size=1/cv):
+            X_train, X_test = X[train_index], X[test_index]
+            y_train, y_test = y[train_index], y[test_index]
+
+            # Fit the model and get the score
+            self.fit(X_train, y_train)
+            scores.append(self.score(X_test, y_test))
+        
+        # Return the scores
+        return scores
+    
+
+    def confusion_matrix(self, X:np.ndarray=None, y:np.ndarray=None):
+        """
+        Get the confusion matrix of the model on the data
+        
+        Parameters:
+            X (n,d) ndarray - The data to get the confusion matrix for
+            y (n,) ndarray - The labels of the data
+        Returns:
+            confusion_matrix (num_classes,num_classes) ndarray - The confusion matrix of the model
+        """
+        #TODO: Test this function
+        # If the data is not provided, use the training data
+        if X is None:
+            X = self.X
+            y = self.y
+
+        # Get the predictions and return the confusion matrix
+        predictions = self.predict(X)
+        return confusion_matrix(y, predictions, labels=self.classes)
 
 
     ############################## Other Functions ###############################
@@ -602,20 +704,65 @@ class model3():
         return new_model
     
 
-    def save_weights(self, file_path):
+    def save_weights(self, file_path:str, save_type="standard"):
         """
         Save the weights of the model to a file so that it can be loaded later
 
         Parameters:
             file_path (str) - The name of the file to save the weights to
+            save_type (str) - How much of the model to save
+                "full" - Save the full model and all of its attributes
+                "standard" - Save the standard attributes of the model
+                "weights" - Save only the weights of the model
         Returns:
             None
         """
+        # TODO: Test this function
+        if save_type not in ["full", "standard", "weights"]:
+            raise ValueError("save_type must be 'full', 'standard', or 'weights'")
+        
+        preferences = {"weights": self.weights,
+                       "save_type": save_type}
+        if save_type == "standard":
+            standar_preferences = {"max_iter": self.max_iter, 
+                        "tol": self.tol, 
+                        "learning_rate": self.learning_rate,
+                        "optimizer": self.optimizer,
+                        "batch_size": self.batch_size,
+                        "epochs": self.epochs,
+                        "reg": self.reg,
+                        "dim_reg": self.dim_reg, 
+                        "n": self.n,
+                        "d": self.d,
+                        "classes": self.classes,
+                        "num_classes": self.num_classes,
+                        "y_dict": self.y_dict,
+                        "one_hot": self.one_hot,
+                        }
+            preferences.update(standar_preferences)
+        
+        if save_type == "full":
+            remaining_attributes = {"X": self.X,
+                                    "y": self.y,
+                                    "differences": self.differences,
+                                    "cur_gaussian": self.cur_gaussian,
+                                    "cur_tensor_prod": self.cur_tensor_prod,
+                                    "subset_differences": self.subset_differences,
+                                    "X_val_set": self.X_val_set,
+                                    "y_val_set": self.y_val_set,
+                                    "class_index": self.class_index,
+                                    "val_history": self.val_history,
+                                    "train_history": self.train_history,
+                                    "weights_history": self.weights_history,
+                                    }
+            preferences.update(remaining_attributes)
+
         try:
-            np.save(file_path, self.weights)
-        except:
-            raise ValueError("The file could not be saved")
-        raise NotImplementedError("This function is not implemented yet")
+            with open(f'{file_path}.pkl', 'wb') as f:
+                pickle.dump(preferences, f)
+        except Exception as e:
+            print(e)
+            raise ValueError(f"The file '{file_path}.pkl' could not be saved.")
     
 
     def load_weights(self, file_path):
@@ -627,9 +774,43 @@ class model3():
         Returns:
             None
         """
+        # TODO: Test this function
         try:
-            self.weights = np.load(file_path)
-        except:
-            raise ValueError("The file could not be loaded")
-        raise NotImplementedError("This function is not implemented yet")
+            with open(f'{file_path}.pkl', 'rb') as f:
+                data = pickle.load(f)
+            save_type = data["save_type"]
+
+            self.weights = data["weights"]
+            if save_type == "standard" or save_type == "full":
+                self.max_iter = data["max_iter"]
+                self.tol = data["tol"]
+                self.learning_rate = data["learning_rate"]
+                self.optimizer = data["optimizer"]
+                self.batch_size = data["batch_size"]
+                self.epochs = data["epochs"]
+                self.reg = data["reg"]
+                self.dim_reg = data["dim_reg"]
+                self.n = data["n"]
+                self.d = data["d"]
+                self.classes = data["classes"]
+                self.num_classes = data["num_classes"]
+                self.y_dict = data["y_dict"]
+                self.one_hot = data["one_hot"]
+            if save_type == "full":
+                self.X = data["X"]
+                self.y = data["y"]
+                self.differences = data["differences"]
+                self.cur_gaussian = data["cur_gaussian"]
+                self.cur_tensor_prod = data["cur_tensor_prod"]
+                self.subset_differences = data["subset_differences"]
+                self.X_val_set = data["X_val_set"]
+                self.y_val_set = data["y_val_set"]
+                self.class_index = data["class_index"]
+                self.val_history = data["val_history"]
+                self.train_history = data["train_history"]
+                self.weights_history = data["weights_history"]
+
+        except Exception as e:
+            print(e)
+            raise ValueError(f"The file '{file_path}.pkl' could not be loaded")
         
