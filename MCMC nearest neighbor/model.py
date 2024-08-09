@@ -16,13 +16,51 @@ from matplotlib.animation import FuncAnimation
 """
 To import this class into an ipynb file in the same folder:
 
-from model import model3
+from model import model3    
 """
 
 
 
 class model3():
-    def __init__(self, max_iter=1000, tol=1e-8, learning_rate=0.01, reg = 10, dim_reg = 0, optimizer = "grad", batch_size=32, epochs = 100):
+    def __init__(self, max_iter=1000, tol=1e-8, learning_rate=0.01, reg=10, dim_reg=0, optimizer="grad", batch_size=32, epochs=100):
+        """Initialize the model
+        
+        Parameters:
+            max_iter (int) - The maximum number of iterations to perform in the gradient descent optimization
+            tol (float) - The tolerance for the amount of improvement between iterations during gradient descent optimization
+            learning_rate (float) - The learning rate for the gradient descent optimization
+            reg (float) - The regularization parameter for learning the covariance matrix
+            dim_reg (float) - The regularization parameter for the dimension of the covariance matrix
+                            This regularizer adds the identity matrix scaled by dim_reg to the covariance matrix to penalize
+                            the model for dropping dimensions
+            optimizer (str) - The optimizer to use. 
+                            Options are 'grad' for gradient descent, 'sgd' for stochastic gradient descent, and 'bfgs' for BFGS
+            batch_size (int) - The batch size for stochastic gradient descent
+            epochs (int) - The number of epochs for stochastic gradient descent
+
+        Attributes:
+            X (n,d) ndarray - The data to fit the model on
+            y (n,) ndarray - The labels of the data
+            n (int) - The number of data points
+            d (int) - The dimension of the data
+            weights (d,d) ndarray - The weights to learn
+            classes (num_classes,) ndarray - The classes of the data
+            num_classes (int) - The number of classes
+            y_dict (dict) - A dictionary mapping the labels to integers
+            one_hot (n,num_classes) ndarray - The one hot encoding of the labels
+            differences (n,n,d) ndarray - The differences array for the informative points
+            cur_gaussian (n,n) ndarray - The current gaussian kernel for the informative points
+            cur_tensor_prod (n,n,d) ndarray - The current tensor product for the informative points
+            subset_differences (list) - A list of differences arrays for each subset
+            X_val_set (n_val,d) ndarray - The validation set for the data
+            y_val_set (n_val,) ndarray - The validation labels for the data
+            class_index (list) - A list of indices for each class
+            val_history (list) - A list of validation accuracies
+            train_history (list) - A list of training accuracies
+            weights_history (list) - A list of the weights at each iteration
+        Returns:
+            None
+        """
         # Hyperparameters
         self.max_iter = max_iter
         self.tol = tol
@@ -58,16 +96,28 @@ class model3():
         
 
     ############################## Helper Functions ###############################
-    def label_from_stationary(self, stationary, show_probabilities = False):
-        """Get the label from the stationary distribution
-        Input:
+    def label_from_stationary(self, stationary:np.ndarray, show_probabilities=False):
+        """
+        Get the label for each class from the stationary distribution.
+
+        Parameters:
             stationary (n,) ndarray - The stationary distribution of the data
-        Output:
-            labels (n,) ndarray - The predicted labels of the data"""
-        
+            show_probabilities (bool) - Whether to return the probabilities of the classes
+        Returns:
+            labels (n,) ndarray - The predicted labels of the data 
+            OR
+            class_probabilities (num_classes,) ndarray - The probabilities of each class based on the stationary distribution
+        """
+        # Runtime check to ensure `stationary` is a 1D ndarray
+        if not isinstance(stationary, np.ndarray):
+            raise TypeError("stationary must be a numpy ndarray.")
+        if stationary.ndim != 1:
+            raise ValueError("stationary must be a 1D ndarray.")
         # Check if the sum of the stationary distribution is approximately 1
         if not np.isclose(np.sum(stationary), 1):
             raise ValueError("The weights do not sum to 1.")
+        if not type(show_probabilities) == bool:
+            raise TypeError("show_probabilities must be a boolean.")
         
         # Sum the weights for each class
         class_probabilities = np.zeros(self.num_classes)
@@ -84,7 +134,15 @@ class model3():
             return self.classes[indices]
 
 
-    def encode_y(self,y):
+    def encode_y(self, y:np.ndarray):
+        """
+        Encode the labels of the data.
+
+        Parameters:
+            y (n,) ndarray - The labels of the data
+        Returns:
+            None
+        """
         # Check if the input is a list
         if isinstance(y, list):
             y = np.array(y)
@@ -96,14 +154,13 @@ class model3():
         # If it is not integers, give it a dictionary
         if y.dtype != int:
             self.classes = np.unique(y)
-            self.num_classes = len(self.classes)
             self.y_dict = {label: i for i, label in enumerate(np.unique(y))}
 
         # If it is, still make it a dictionary
         else:
             self.classes = np.arange(np.max(y)+1)
-            self.num_classes = len(self.classes)
             self.y_dict = {i: i for i in self.classes}
+        self.num_classes = len(self.classes)
 
         # Create an index array
         for i in range(self.num_classes):
@@ -116,6 +173,13 @@ class model3():
 
         
     def randomize_batches(self):
+        """
+        Randomize the batches for stochastic gradient descent
+        Parameters:
+            None
+        Returns:
+            batches (list) - A list of batches of indices for training
+        """
         # Get randomized indices and calculate the number of batches
         indices = np.arange(self.n)
         np.random.shuffle(indices)
@@ -140,12 +204,20 @@ class model3():
 
 
     ############################## Training Calculations ##############################
-    def update_differences(self, X, batches = None):
-        """ Get the differences array for the informative points
-        Input:
+    def update_differences(self, X:np.ndarray, batches=None):
+        """
+        Get the array of difference between the informative points
+        
+        Parameters:
+            X (n,d) ndarray - The data to calculate the differences for
+            batches (list) - A list of batches of indices for training
+            NOT?
             informative_points (n,d) ndarray - The informative points
-        Output:
-            differences (n,n,d) ndarray - The differences array for the informative points"""
+        Returns:
+            None
+            NOT?
+            differences (n,n,d) ndarray - The differences array for the informative points
+        """
         # If it is not a batch, calculate the differences
         if batches is None:
             self.differences = X[:,np.newaxis,:] - X[np.newaxis,:,:]
@@ -155,15 +227,18 @@ class model3():
             self.subset_differences = [X[batch][:,np.newaxis,:] - X[batch][np.newaxis,:,:] for batch in batches]
 
     
-    def update_gaussian(self, weights, subset_num = None):
-        """ Get the gaussian kernel for the informative points
-        Input:
+    def update_gaussian(self, weights:np.ndarray, subset_num=None):
+        """
+        Get the gaussian kernel for the informative points
+        
+        Parameters:
+            weights (d,) ndarray - The weights for the informative points
+            NOT?
             informative_points (n,d) ndarray - The informative points
             target (n,) ndarray - The target values
-            weights (d,) ndarray - The weights for the informative points
-        Output:
+        Returns:
             gaussian (n,n) ndarray - The gaussian kernel for the informative points"""
-        # If there is no subset, let the differences be the self.differeces
+        # If there is no subset, let the differences be the self.differences
         if subset_num is None:
             differences = self.differences
         else:
@@ -175,7 +250,17 @@ class model3():
         self.cur_tensor_prod = tensor_prod
 
 
-    def gradient(self, W, subset = None, subset_num = None):
+    def gradient(self, W:np.ndarray, subset=None, subset_num=None):
+        """
+        Compute the gradient of the loss function
+
+        Parameters:
+            W (d,d) ndarray - The weights for the informative points
+            subset (list) - A list of indices for the subset
+            subset_num (int) - The number of the subset
+        Returns:
+            dW (d,d) ndarray - The gradient of the loss function
+        """
         # Initialize the gradient
         self.update_gaussian(W, subset_num)
         dW = np.zeros((self.d,self.d))
@@ -228,7 +313,17 @@ class model3():
         return 2*dW + self.reg*(W / np.linalg.norm(W, 'fro') - self.dim_reg*np.eye(self.d) /self.d)
     
 
-    def loss(self, W, subset = None, subset_num = None):
+    def loss(self, W:np.ndarray, subset=None, subset_num=None):
+        """
+        Compute the loss function
+
+        Parameters:
+            W (d,d) ndarray - The weights for the informative points
+            subset (list) - A list of indices for the subset
+            subset_num (int) - The number of the subset
+        Returns:
+            loss (float) - The loss function
+        """
         # Initialize the loss and total gaussian
         self.update_gaussian(W, subset_num)
         loss = 0
@@ -248,12 +343,18 @@ class model3():
             loss += np.log(np.sum(g_c, axis=0) + 1e-20)
 
         # Calculate the loss
-        loss = np.sum(loss - total_g_log) + self.reg*(np.linalg.norm(W, 'fro') - self.dim_reg*np.trace(W) /self.d)
-        return loss
+        return np.sum(loss - total_g_log) + self.reg*(np.linalg.norm(W, 'fro') - self.dim_reg*np.trace(W) /self.d)
 
 
     ########################## Optimization and Training Functions ############################
     def gradient_descent(self):
+        """
+        Perform gradient descent on the model
+        Parameters:
+            None
+        Returns:
+            None
+        """
         show_iter = max(self.max_iter,100) // 100
         for i in range(self.max_iter):
             # Get the gradient
@@ -284,7 +385,15 @@ class model3():
                 break
 
 
-    def stochastic_gradient_descent(self, re_randomize = False):
+    def stochastic_gradient_descent(self, re_randomize=True):
+        """
+        Perform stochastic gradient descent on the model
+
+        Parameters:
+            re_randomize (bool) - Whether to re-randomize the batches after each epoch
+        Returns:
+            None
+        """
         # Raise an error if there are no epochs or batch size, or if batch size is greater than the number of points
         if self.batch_size is None or self.epochs is None:
             raise ValueError("Batch size or epochs must be specified")
@@ -340,6 +449,14 @@ class model3():
 
 
     def bfgs(self):
+        """
+        Perform Broyden-Fletcher-Goldfarb-Shanno (BFGS) optimization on the model
+
+        Parameters:
+            None
+        Returns:
+            None
+        """
         # Define iterations to show the progress and define the loss and gradient function in 1D
         show_iter = max(self.max_iter, 100) // 100
         loss_bfgs = lambda W: self.loss(W.reshape(self.d, self.d))
@@ -369,7 +486,20 @@ class model3():
         res = minimize(loss_bfgs, self.weights.flatten(), jac=gradient_bfgs, method='BFGS', options={'disp': False, 'maxiter': self.max_iter, 'gtol':self.tol}, callback=callback)
         self.weights = res.x.reshape(self.d, self.d)
 
-    def fit(self, X, y, X_val_set = None, y_val_set = None, init_weights = None):
+
+    def fit(self, X:np.ndarray, y:np.ndarray, X_val_set=None, y_val_set=None, init_weights=None):
+        """
+        Fit the model to the data
+
+        Parameters:
+            X (n,d) ndarray - The data to fit the model on
+            y (n,) ndarray - The labels of the data
+            X_val_set (n_val,d) ndarray - The validation set for the data
+            y_val_set (n_val,) ndarray - The validation labels for the data
+            init_weights (d,d) ndarray - The initial weights for the model
+        Returns:
+            None
+        """
         # Save the data as variables and encode y
         self.X = np.array(X)
         self.y = np.array(y)
@@ -406,12 +536,15 @@ class model3():
 
 
     ############################## Prediction Functions #############################
-    def predict(self, points, show_probabilities=False):
-        """Predict the labels of the data
-        Input:
+    def predict(self, points:np.ndarray, show_probabilities=False):
+        """
+        Predict the labels of the data
+        
+        Parameters:
             points (n,d) ndarray - The data to predict
-        Output:
-            predictions (n,) ndarray - The predicted labels of the data"""
+        Returns:
+            predictions (n,) ndarray - The predicted labels of the data
+        """
         # Check the shape of the data and the point and initialize the predictions
         if len(points.shape) == 1:
             points = points[np.newaxis,:]
@@ -432,8 +565,18 @@ class model3():
 
     ############################## Other Functions ###############################
     def copy(self):
+        """
+        Create a copy of the model
+
+        Parameters:
+            None
+        Returns:
+            new_model (model3 class) - A copy of the model
+        """
         # Initialize a new model
-        new_model = model3(max_iter=self.max_iter, tol=self.tol, learning_rate=self.learning_rate, reg=self.reg, dim_reg=self.dim_reg, optimizer=self.optimizer, batch_size=self.batch_size, epochs=self.epochs)
+        new_model = model3(max_iter=self.max_iter, tol=self.tol, learning_rate=self.learning_rate, 
+                           reg=self.reg, dim_reg=self.dim_reg, 
+                           optimizer=self.optimizer, batch_size=self.batch_size, epochs=self.epochs)
         
         # Save the attributes of the new model
         new_model.X = self.X
@@ -459,17 +602,33 @@ class model3():
         return new_model
     
 
-    def save_weights(self, filename):
+    def save_weights(self, file_path):
+        """
+        Save the weights of the model to a file so that it can be loaded later
+
+        Parameters:
+            file_path (str) - The name of the file to save the weights to
+        Returns:
+            None
+        """
         try:
-            np.save(filename, self.weights)
+            np.save(file_path, self.weights)
         except:
             raise ValueError("The file could not be saved")
         raise NotImplementedError("This function is not implemented yet")
     
 
-    def load_weights(self, filename):
+    def load_weights(self, file_path):
+        """
+        Load the weights of the model from a file
+
+        Parameters:
+            file_path (str) - The name of the file to load the weights from
+        Returns:
+            None
+        """
         try:
-            self.weights = np.load(filename)
+            self.weights = np.load(file_path)
         except:
             raise ValueError("The file could not be loaded")
         raise NotImplementedError("This function is not implemented yet")
